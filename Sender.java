@@ -16,8 +16,9 @@ public class Sender {
 
     	ByteBuffer headerBB;
     	File in=null;
-		double bad = 0.20;
-		byte ackerr;
+		double bad = 0.40;
+		String requestStatus="";
+		int ackerr;
 		int ackno;
 		int packetSize = 1024;
 		String ackStatus ="";
@@ -37,12 +38,14 @@ public class Sender {
 
         	byte[] data;
         	byte[] img = Files.readAllBytes(in.toPath());
-        	byte[] buf = new byte[packetSize+17];
+        	byte[] buf = new byte[packetSize+20];
             InetAddress host = InetAddress.getByName("localhost");
             int offset = 0;
             int packetLength = (int) Math.ceil(inLength/12.0);
             DatagramPacket request;
 
+            
+            /*
             //for images of smaller size, split them into 12 packets still, packet size = img size/12 + header
             if (inLength < packetSize*12) {
             	for (int counter=1;counter<=12;counter++)
@@ -68,9 +71,9 @@ public class Sender {
 
             		//create packet and send request
             		if(inLength <= offset + packetLength - 1)
-                		request = new DatagramPacket(buf, (int) inLength-offset+17,host, PORT);
+                		request = new DatagramPacket(buf, (int) inLength-offset+20,host, PORT);
             		else
-            			request = new DatagramPacket(buf, packetLength+17,host, PORT);
+            			request = new DatagramPacket(buf, packetLength+20,host, PORT);
 
             		long time = System.nanoTime();
             		socket.send(request);
@@ -83,17 +86,23 @@ public class Sender {
             		//receiving ack and resending if drop
             		while(true) {
             			try{
-            				DatagramPacket ack = new DatagramPacket(new byte[5], 5);
+            				DatagramPacket ack = new DatagramPacket(new byte[8], 8);
 	            			socket.receive(ack);
 
 	            			//parsing ack
 	                        headerBB = ByteBuffer.wrap(ack.getData());
-	                        ackerr = headerBB.get();
+	                        
 	                        ackno = headerBB.getInt();
+	                        ackerr = headerBB.getInt();
+	                        
+	                        System.out.println("ackerr: "+ackerr+"- ackno:"+ackno+" counter:"+counter);
 
 	                        if (ackerr == 1) {
 	                        	ackStatus = "ErrAck";
 	                        }
+	                        else if(ackno != counter) {
+		                        	ackStatus = "DuplAck";
+	                        }	                        
 	                        else {
 	                        	ackStatus = "MoveWnd";
 	                        }
@@ -113,7 +122,7 @@ public class Sender {
             			time = System.nanoTime();
             			socket.send(request);
             			//logging resend message
-            			System.out.println("ReSend" + counter +  " " + offset + ":" + (offset+data.length-1) + " "
+            			System.out.println("ReSend " + counter +  " " + offset + ":" + (offset+data.length-1) + " "
                         		+ TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - time) + " " + dropCheck(bad));
             		}
 
@@ -122,7 +131,7 @@ public class Sender {
             }
 
             //for images of larger size, just use packet size of 1024 bytes of data + header
-        	else {
+        	else */{
             	int counter=0;
         		while(offset + packetSize < in.length()) {
         		buf=null;
@@ -140,23 +149,35 @@ public class Sender {
     			dos.writeInt(offset);
     			dos.writeLong(inLength);
 
+
+        		requestStatus = dropCheck(bad);
+        		
+        		if(requestStatus.equals("DROP")) {
+                    System.out.println("SENDing " + counter +  " " + offset + ":" + (offset+data.length-1) + " " + requestStatus);
+        			continue;
+        		}
+        		else if (requestStatus.equals("SENT"))
+            		dos.writeInt(0);
+        		else if(requestStatus.equals("ERR"))
+        			dos.writeInt(1);
+        		
         		dos.write(data);
         		buf = baos.toByteArray();
-
-        		System.out.println(counter + "-" + offset +"-"+(offset+data.length-1));
+        		
+        		//logging prog 1
+        		//System.out.println(counter + "-" + offset +"-"+(offset+data.length-1));
 
         		//create packet and send request
         		if(inLength <= offset + packetSize-1)
-            		request = new DatagramPacket(buf, (int) inLength-offset+17,host, PORT);
+            		request = new DatagramPacket(buf, (int) inLength-offset+20,host, PORT);
         		else
-            		request = new DatagramPacket(buf, packetSize+16, host, PORT); // packetSize+17 breaks code
+            		request = new DatagramPacket(buf, packetSize+20, host, PORT); // packetSize+20 breaks code
 
         		long time = System.nanoTime();
                 socket.send(request);
                 //logging send message for larger files
-                System.out.println("SENDing " + counter +  " " + offset + ":" + (offset+data.length-1) + " "
-                + TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - time) + " " + dropCheck(bad));
-
+                System.out.println("SENDing " + counter +  " " + offset + ":" + (offset+data.length-1) + " " + requestStatus);
+                
         		socket.setSoTimeout(2000);
 
         		while(true) {
@@ -166,14 +187,16 @@ public class Sender {
 
             			//parsing ack
                         headerBB = ByteBuffer.wrap(ack.getData());
-                        ackerr = headerBB.get();
+
                         ackno = headerBB.getInt();
+                        ackerr = headerBB.getInt();
 
                         if (ackerr == 1) {
                         	ackStatus = "ErrAck";
                         }
                         else {
                         	ackStatus = "MoveWnd";
+                        	//counter++;
                         }
 
                         //loggin ack
@@ -191,9 +214,10 @@ public class Sender {
         			time = System.nanoTime();
         			socket.send(request);
         			//logging resend
-        			System.out.println("ReSend" + counter +  " " + offset + ":" + (offset+data.length-1) + " "
+        			System.out.println("ReSend " + counter +  " " + offset + ":" + (offset+data.length-1) + " "
                     		+ TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - time) + " " + dropCheck(bad));
         		}
+        		//counter++;
         		baos.reset();
         		}
         	}
