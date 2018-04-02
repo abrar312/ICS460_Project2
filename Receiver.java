@@ -31,7 +31,7 @@ public class Receiver {
     	int packetSize = 1024;
     	long ackTime;
     	long reqTime;
-    	double bad =0.40;
+    	double bad =0.20;
     	int errStatus = 0;
     	String ackStatus = "";
     	int ackno = 1;
@@ -59,39 +59,38 @@ public class Receiver {
                     headerBB.get(data, 0, request.getLength()-20);                    
                     serverByte.put(sequence, data);
                     
-                    if (ackno != sequence){
-                    	System.out.println("DUPL "+ reqTime + " " + sequence +" !Seq");
-                    	continue;
-                    }
-                    else if (errStatus == 1){
-                		System.out.println("RECV "+ reqTime + " " + sequence +" CRPT");
+                    if (errStatus == 1){
+                		System.out.println("RECV "+ reqTime + " " + sequence +" CRPT "+errStatus);
+                		baos.reset();
                 		continue;
                 	}
                 	else{
-                		System.out.println("RECV "+ reqTime + " " + sequence +" RECV");
+                		if(ackno != sequence) {
+                			System.out.println("DUPL "+ reqTime + " " + sequence +" !Seq");
+                			ackno--;
+                		}
+                		else
+                			System.out.println("RECV "+ reqTime + " " + sequence +" RECV");
                 		dos.writeInt(sequence);
                 		ackStatus = dropCheck(bad);
                 		
                 		if(ackStatus.equals("DROP"))
-                			continue;
+                			dos.writeInt(1);
                 		else if (ackStatus.equals("SENT"))
                     		dos.writeInt(0);
                 		else if(ackStatus.equals("ERR"))
                 			dos.writeInt(1);
-                		
-                		
                 		
                 		ackData = baos.toByteArray();
                 		ack = new DatagramPacket(ackData, 8, host, 14);
                 		ackTime = System.nanoTime();
                 		socket.send(ack);
                 		ackTime = System.nanoTime()-ackTime;
-                		System.out.println("SENDing ACK "+sequence+" "+ackTime+" "+dropCheck(bad));
+                		System.out.println("SENDing ACK "+sequence+" "+ackTime+" "+ackStatus);
+                		//if (ackStatus.equals("SENT"))
                 		ackno++;
+                		baos.reset();
                 	}
-                 
-                    //logging for prog 1
-                    //System.out.println(sequence + "-"+offset + "-"+(offset+data.length-1));
                     
                     //check if last packet has been received
                     if(inLength <= offset+data.length) {
@@ -100,7 +99,6 @@ public class Receiver {
                     
                     //if last packet has been received, check that all packets have been received
                     if(last) {
-                    	System.out.println("yay???");
                     	complete = true;
                     	for(Integer i: serverByte.keySet()) {
                     		
@@ -119,7 +117,6 @@ public class Receiver {
                     
                     //if all packets in and in order, write to file
                 	if(last && complete) {
-                		System.out.println("yay");
                 		FileOutputStream fos = new FileOutputStream(output);
                 		try {
                     		for(byte[] b: serverByte.values()) {
@@ -131,6 +128,7 @@ public class Receiver {
                     		fos.close();
                     		complete = false;
                     		last = false;
+                    		ackno=1;
                 		} catch (IOException e) {
                 		    e.printStackTrace();
                 		}

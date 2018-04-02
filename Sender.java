@@ -12,18 +12,16 @@ public class Sender {
     private final static int PORT = 13;
 
     public static void main(String[] args) {
-    	//File in = new File(args[0]);
-
     	ByteBuffer headerBB;
     	File in=null;
-		double bad = 0.40;
+		double bad = 0.00;
 		String requestStatus="";
 		int ackerr;
 		int ackno;
 		int packetSize = 1024;
 		String ackStatus ="";
 
-    	//filechooser as substitue for cmd while developing
+    	//filechooser as substitue for cmd
     	JFileChooser jfc = new JFileChooser(System.getProperty("user.dir"));
 		int returnValue = jfc.showSaveDialog(null);
 		if (returnValue == JFileChooser.APPROVE_OPTION) {
@@ -149,17 +147,19 @@ public class Sender {
     			dos.writeInt(offset);
     			dos.writeLong(inLength);
 
-
+    			//---------------------------this through "end" needs to be implemented for smaller code
         		requestStatus = dropCheck(bad);
         		
         		if(requestStatus.equals("DROP")) {
                     System.out.println("SENDing " + counter +  " " + offset + ":" + (offset+data.length-1) + " " + requestStatus);
-        			continue;
+                    dos.writeInt(1);
+                    //continue;
         		}
         		else if (requestStatus.equals("SENT"))
             		dos.writeInt(0);
-        		else if(requestStatus.equals("ERR"))
+        		else if(requestStatus.equals("ERRR"))
         			dos.writeInt(1);
+        		//----------------end
         		
         		dos.write(data);
         		buf = baos.toByteArray();
@@ -175,11 +175,13 @@ public class Sender {
 
         		long time = System.nanoTime();
                 socket.send(request);
+                //------------new logging needs to be implemented for smaller file
                 //logging send message for larger files
                 System.out.println("SENDing " + counter +  " " + offset + ":" + (offset+data.length-1) + " " + requestStatus);
                 
         		socket.setSoTimeout(2000);
 
+        		//-----------------this through "end" needs to be implemented for smaller files
         		while(true) {
         			try{
         				DatagramPacket ack = new DatagramPacket(new byte[8], 8);
@@ -209,6 +211,33 @@ public class Sender {
         			catch (SocketTimeoutException e) {
         				System.out.println("TimeOut: " + counter);
         			}
+        			
+        			//recreating datagram packet for resend
+        			baos.reset();
+        			dos.writeInt(counter);
+        			dos.writeInt(offset);
+        			dos.writeLong(inLength);
+
+            		requestStatus = dropCheck(bad);
+            		
+            		if(requestStatus.equals("DROP")) {
+                        System.out.println("SENDing " + counter +  " " + offset + ":" + (offset+data.length-1) + " " + requestStatus);
+                        dos.writeInt(1);
+                        //continue;
+            		}
+            		else if (requestStatus.equals("SENT"))
+                		dos.writeInt(0);
+            		else if(requestStatus.equals("ERRR"))
+            			dos.writeInt(1);
+            		
+            		dos.write(data);
+            		buf = baos.toByteArray();
+
+            		//recreate packet and resend request
+            		if(inLength <= offset + packetSize-1)
+                		request = new DatagramPacket(buf, (int) inLength-offset+20,host, PORT);
+            		else
+                		request = new DatagramPacket(buf, packetSize+20, host, PORT); // packetSize+20 breaks code
 
         			//resending for timeout and err ack
         			time = System.nanoTime();
@@ -217,6 +246,7 @@ public class Sender {
         			System.out.println("ReSend " + counter +  " " + offset + ":" + (offset+data.length-1) + " "
                     		+ TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - time) + " " + dropCheck(bad));
         		}
+        		//------------------------end
         		//counter++;
         		baos.reset();
         		}
