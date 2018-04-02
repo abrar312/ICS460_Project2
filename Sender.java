@@ -14,7 +14,7 @@ public class Sender {
     public static void main(String[] args) {
     	ByteBuffer headerBB;
     	File in=null;
-		double bad = 0.00;
+		double bad = 0.20;
 		String requestStatus="";
 		int ackerr;
 		int ackno;
@@ -151,9 +151,9 @@ public class Sender {
         		requestStatus = dropCheck(bad);
         		
         		if(requestStatus.equals("DROP")) {
-                    System.out.println("SENDing " + counter +  " " + offset + ":" + (offset+data.length-1) + " " + requestStatus);
-                    dos.writeInt(1);
-                    //continue;
+                    //System.out.println("SENDing " + counter +  " " + offset + ":" + (offset+data.length-1) + " " + requestStatus);
+                    dos.writeInt(-1);
+                    //counter--;
         		}
         		else if (requestStatus.equals("SENT"))
             		dos.writeInt(0);
@@ -175,9 +175,10 @@ public class Sender {
 
         		long time = System.nanoTime();
                 socket.send(request);
+                time = TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - time);
                 //------------new logging needs to be implemented for smaller file
                 //logging send message for larger files
-                System.out.println("SENDing " + counter +  " " + offset + ":" + (offset+data.length-1) + " " + requestStatus);
+                System.out.println("SENDing " + counter +  " " + offset + ":" + (offset+data.length-1) + " "+ time +" " + requestStatus);
                 
         		socket.setSoTimeout(2000);
 
@@ -202,10 +203,12 @@ public class Sender {
                         }
 
                         //loggin ack
-            			System.out.println("AckRcvd " + ackno + " " + ackStatus);
-        				if(ackStatus.equals("MoveWnd")){
-        					break;
-        				}
+                        if(ackerr != -1) {
+	            			System.out.println("AckRcvd " + ackno + " " + ackStatus);
+	        				if(ackStatus.equals("MoveWnd")){
+	        					break;
+	        				}
+                        }
         			}
         			//logging timeout
         			catch (SocketTimeoutException e) {
@@ -222,7 +225,7 @@ public class Sender {
             		
             		if(requestStatus.equals("DROP")) {
                         System.out.println("SENDing " + counter +  " " + offset + ":" + (offset+data.length-1) + " " + requestStatus);
-                        dos.writeInt(1);
+                        dos.writeInt(-1);
                         //continue;
             		}
             		else if (requestStatus.equals("SENT"))
@@ -242,9 +245,10 @@ public class Sender {
         			//resending for timeout and err ack
         			time = System.nanoTime();
         			socket.send(request);
+        			time = TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - time);
         			//logging resend
         			System.out.println("ReSend " + counter +  " " + offset + ":" + (offset+data.length-1) + " "
-                    		+ TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - time) + " " + dropCheck(bad));
+                    		+ time + " " + requestStatus);
         		}
         		//------------------------end
         		//counter++;

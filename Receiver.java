@@ -46,7 +46,7 @@ public class Receiver {
                     DatagramPacket request = new DatagramPacket(new byte[packetSize+20], packetSize+20);
                     reqTime = System.nanoTime();
                     socket.receive(request);
-                    reqTime = System.nanoTime()-reqTime;
+                    reqTime = TimeUnit.NANOSECONDS.toMicros(System.nanoTime()-reqTime);
                     
                     //parse out out header
                     data = new byte[request.getLength()-20];
@@ -64,6 +64,10 @@ public class Receiver {
                 		baos.reset();
                 		continue;
                 	}
+                    else if (errStatus == -1) {
+                    	baos.reset();
+						continue;
+                    }
                 	else{
                 		if(ackno != sequence) {
                 			System.out.println("DUPL "+ reqTime + " " + sequence +" !Seq");
@@ -75,7 +79,8 @@ public class Receiver {
                 		ackStatus = dropCheck(bad);
                 		
                 		if(ackStatus.equals("DROP"))
-                			dos.writeInt(1);
+                			dos.writeInt(-1);
+                			//continue;
                 		else if (ackStatus.equals("SENT"))
                     		dos.writeInt(0);
                 		else if(ackStatus.equals("ERR"))
@@ -85,7 +90,7 @@ public class Receiver {
                 		ack = new DatagramPacket(ackData, 8, host, 14);
                 		ackTime = System.nanoTime();
                 		socket.send(ack);
-                		ackTime = System.nanoTime()-ackTime;
+                		ackTime = TimeUnit.NANOSECONDS.toMicros(System.nanoTime()-ackTime);
                 		System.out.println("SENDing ACK "+sequence+" "+ackTime+" "+ackStatus);
                 		//if (ackStatus.equals("SENT"))
                 		ackno++;
