@@ -1,3 +1,4 @@
+
 import java.io.*;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -10,9 +11,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import javax.swing.JOptionPane;
+
 public class Receiver {
 
-    private final static int PORT = 13;
+    private final static int PORT = 1300;
     private final static Logger audit = Logger.getLogger("requests");
     private final static Logger errors = Logger.getLogger("errors");
 
@@ -27,11 +30,11 @@ public class Receiver {
     	boolean last = false;
     	boolean complete = false;
     	ByteBuffer headerBB;
-    	int counter=0;
-    	int packetSize = 1024;
+    	int counter= 0;
+    	double bad = Double.parseDouble(JOptionPane.showInputDialog(null, "Enter Droprate: "));
+    	int packetSize = Integer.parseInt(JOptionPane.showInputDialog(null, "Enter Packet Size: "));
     	long ackTime;
-    	long reqTime;
-    	double bad =0.20;
+    	long reqTime;  
     	int errStatus = 0;
     	String ackStatus = "";
     	int ackno = 1;
